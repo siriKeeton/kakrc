@@ -1,0 +1,84 @@
+# Use plug.kak
+# ──────────────────────────────────────────────────────
+source "%val{config}/plugins/plug.kak/rc/plug.kak"
+
+# Add plugins
+# ──────────────────────────────────────────────────────
+plug "andreyorst/powerline.kak" config %{
+        powerline-start
+}
+plug "andreyorst/smarttab.kak" defer smarttab %{
+    # when `backspace' is pressed, 4 spaces are deleted at once
+    set-option global softtabstop 4
+} config %{
+    # these languages will use `expandtab' behavior
+    hook global WinSetOption filetype=(python|rust|c|bash) expandtab
+    # these languages will use `noexpandtab' behavior
+    # hook global WinSetOption filetype=(makefile|gas) noexpandtab
+    # these languages will use `smarttab' behavior
+    # hook global WinSetOption filetype=(c|cpp) smarttab
+}
+
+plug "ul/kak-lsp" do %{
+    cargo build --release --locked
+    cargo install --force --path .
+}config %{
+    define-command lsp-restart %{ lsp-stop; lsp-start }
+    set-option global lsp_completion_trigger "execute-keys 'h<a-h><a-k>\S[^\h\n,=;*(){}\[\]]\z<ret>'"
+    set-option global lsp_diagnostic_line_error_sign "!"
+    set-option global lsp_diagnostic_line_warning_sign "?"
+    hook global WinSetOption filetype=(c|cpp|rust) %{
+        map window user "l" ": enter-user-mode lsp<ret>" -docstring "LSP mode"
+        lsp-enable-window
+        lsp-auto-hover-enable
+        lsp-auto-hover-insert-mode-disable
+        set-option window lsp_hover_anchor true
+        set-face window DiagnosticError default+u
+        set-face window DiagnosticWarning default+u
+    }
+    hook global WinSetOption filetype=rust %{
+        set-option window lsp_server_configuration rust.clippy_preference="on"
+    }
+    hook global WinSetOption filetype=python %{
+        set-option window lsp_server_configuration pyls.configurationSources=["flake8"]
+    }
+    hook global KakEnd .* lsp-exit
+}
+
+# Map kj to <esc>
+# ──────────────────────────────────────────────────────
+hook global InsertChar j %{ try %{
+      exec -draft hH <a-k>kj<ret> d
+        exec <esc>
+}}
+
+# Filetype specific options
+# ──────────────────────────────────────────────────────
+hook global WinSetOption filetype=python %{
+    lint-enable
+    set-option global lintcmd 'flake8'
+}
+# Global options
+# ──────────────────────────────────────────────────────
+set global tabstop 4
+set global indentwidth 4
+set global aligntab false
+set global ui_options ncurses_asistant=dilbert
+
+
+# Mappings
+# ──────────────────────────────────────────────────────
+map global normal <ret>  10j
+map global menu <ret>    <ret>
+map global normal <c-k>  10k
+map global user y -docstring "Yank to system clipboard"  '<a-|>xsel -i -b<ret>'
+map global normal '#' :comment-line<ret>
+
+# Enable <tab>/<s-tab> for insert completion selection
+# ──────────────────────────────────────────────────────
+hook global InsertCompletionShow .* %{ map window insert <tab> <c-n>; map window insert <s-tab> <c-p> }
+hook global InsertCompletionHide .* %{ unmap window insert <tab> <c-n>; unmap window insert <s-tab> <c-p> }
+ 
+
+add-highlighter global/ number-lines
+
