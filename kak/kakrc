@@ -12,22 +12,20 @@ plug "andreyorst/smarttab.kak" defer smarttab %{
     set-option global softtabstop 4
 } config %{
     # these languages will use `expandtab' behavior
-    hook global WinSetOption filetype=(python|rust|c|bash) expandtab
+    hook global WinSetOption filetype=(python|rust|c|bash|cs|yaml|robot) expandtab
     # these languages will use `noexpandtab' behavior
     # hook global WinSetOption filetype=(makefile|gas) noexpandtab
     # these languages will use `smarttab' behavior
     # hook global WinSetOption filetype=(c|cpp) smarttab
 }
-
 plug "ul/kak-lsp" do %{
     cargo build --release --locked
     cargo install --force --path .
-}config %{
-    define-command lsp-restart %{ lsp-stop; lsp-start }
+} config %{
     set-option global lsp_completion_trigger "execute-keys 'h<a-h><a-k>\S[^\h\n,=;*(){}\[\]]\z<ret>'"
     set-option global lsp_diagnostic_line_error_sign "!"
     set-option global lsp_diagnostic_line_warning_sign "?"
-    hook global WinSetOption filetype=(c|cpp|rust) %{
+    hook global WinSetOption filetype=(c|cpp|python) %{
         map window user "l" ": enter-user-mode lsp<ret>" -docstring "LSP mode"
         lsp-enable-window
         lsp-auto-hover-enable
@@ -36,14 +34,12 @@ plug "ul/kak-lsp" do %{
         set-face window DiagnosticError default+u
         set-face window DiagnosticWarning default+u
     }
-    hook global WinSetOption filetype=rust %{
-        set-option window lsp_server_configuration rust.clippy_preference="on"
-    }
     hook global WinSetOption filetype=python %{
         set-option window lsp_server_configuration pyls.configurationSources=["flake8"]
     }
     hook global KakEnd .* lsp-exit
 }
+plug "occivink/kakoune-gdb"
 
 # Map kj to <esc>
 # ──────────────────────────────────────────────────────
@@ -56,29 +52,46 @@ hook global InsertChar j %{ try %{
 # ──────────────────────────────────────────────────────
 hook global WinSetOption filetype=python %{
     lint-enable
-    set-option global lintcmd 'flake8'
+    set-option window lintcmd 'flake8'
+}
+hook global WinSetOption filetype=c|h %{
+    set-option window formatcmd 'uncrustify -c uncrustify.cfg || true'
 }
 # Global options
 # ──────────────────────────────────────────────────────
 set global tabstop 4
 set global indentwidth 4
 set global aligntab false
-set global ui_options ncurses_asistant=dilbert
+set global ui_options ncurses_assistant=dilbert
 
+# Custom commands
 
+define-command -params 1 -file-completion hsplit %{
+    tmux-terminal-horizontal kak %arg{1}
+}
+
+define-command -params 1 -file-completion vsplit %{
+    tmux-terminal-vertical kak %arg{1}
+}
+# Custom modes
+# ------------------------------------------------------
+declare-user-mode gdb
 # Mappings
 # ──────────────────────────────────────────────────────
-map global normal <ret>  10j
-map global menu <ret>    <ret>
-map global normal <c-k>  10k
 map global user y -docstring "Yank to system clipboard"  '<a-|>xsel -i -b<ret>'
+map global user p -docstring "Paste from system clipboard" '<a-!>xsel -o -b<ret>'
+map global user g -docstring "Enter GDB mode" ':enter-user-mode gdb'
 map global normal '#' :comment-line<ret>
+
+define-command ren_gdb %{ gdb-start -p  `ps aux | grep Renode.exe | head -n 1 | tr -s " " | cut -d " " -f2` -ex "handle SIGXCPU SIG33 SIG35 SIG36 SIG37 SIGPWR nostop noprint" }
 
 # Enable <tab>/<s-tab> for insert completion selection
 # ──────────────────────────────────────────────────────
 hook global InsertCompletionShow .* %{ map window insert <tab> <c-n>; map window insert <s-tab> <c-p> }
 hook global InsertCompletionHide .* %{ unmap window insert <tab> <c-n>; unmap window insert <s-tab> <c-p> }
- 
+
+# Delete traing whitespace and change tabs to spaces before saving
+# ──────────────────────────────────────────────────────
+hook global BufWritePre .* %{exec -draft '%@s\h+$<ret>d'}
 
 add-highlighter global/ number-lines
-
